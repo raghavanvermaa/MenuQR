@@ -1,0 +1,683 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSlug(slug) {
+      return slug is string && slug.size() >= 2 && slug.size() <= 64 && slug.matches('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+    }
+
+    function isSafeOptionalUrl(url) {
+      return url is string && url.size() <= 500 && (
+        url == '' ||
+        url.matches('^https?://.*') ||
+        url.matches('^/uploads/[a-zA-Z0-9_\\-]+\\.(jpg|jpeg|png|webp)$') ||
+        url.matches('^/src/assets/images/[a-zA-Z0-9_\\-]+\\.(jpg|jpeg|png|webp)$')
+      );
+    }
+
+    function isSafeRequiredUrl(url) {
+      return url is string && url.size() >= 1 && url.size() <= 500 && url.matches('^https?://.*');
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'raghavanvermaa@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwnerUid(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidProfile(data, uid) {
+      return data.keys().hasAll(['id', 'fullName', 'email', 'phone', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'fullName', 'email', 'phone', 'createdAt', 'updatedAt'])
+        && data.id == uid
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.phone is string && data.phone.size() <= 24
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdmin(data, uid) {
+      return data.keys().hasAll(['id', 'email', 'createdAt'])
+        && data.keys().hasOnly(['id', 'email', 'createdAt'])
+        && data.id == uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSlugRecord(data, slug) {
+      return data.keys().hasAll(['slug', 'restaurantId', 'ownerId', 'isPublished', 'isSuspended', 'createdAt'])
+        && data.keys().hasOnly(['slug', 'restaurantId', 'ownerId', 'isPublished', 'isSuspended', 'createdAt'])
+        && data.slug == slug
+        && isValidSlug(data.slug)
+        && isValidId(data.restaurantId)
+        && isValidId(data.ownerId)
+        && data.isPublished is bool
+        && data.isSuspended is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidRestaurant(data, restId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'slug', 'restaurantType', 'description',
+          'logoUrl', 'coverUrl', 'city', 'address', 'phone', 'email',
+          'openingHours', 'whatsappNumber', 'promoBanner', 'currency', 'theme',
+          'isPublished', 'isSuspended', 'plan', 'subscriptionStatus',
+          'subscriptionExpiresAt', 'dishCount', 'categoryCount', 'onboardingStep',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'slug', 'restaurantType', 'description',
+          'logoUrl', 'coverUrl', 'city', 'address', 'phone', 'email',
+          'openingHours', 'whatsappNumber', 'promoBanner', 'paymentQrUrl', 'upiId', 'googleReviewUrl',
+          'currency', 'theme', 'isPublished', 'isSuspended', 'plan', 'subscriptionStatus',
+          'subscriptionExpiresAt', 'premiumPassId', 'dishCount', 'categoryCount', 'onboardingStep',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id == restId
+        && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && isValidSlug(data.slug)
+        && data.restaurantType in ['cafe', 'restaurant', 'dhaba', 'bakery', 'cloud_kitchen', 'dessert_shop', 'other']
+        && data.description is string && data.description.size() <= 500
+        && isSafeOptionalUrl(data.logoUrl)
+        && isSafeOptionalUrl(data.coverUrl)
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.address is string && data.address.size() <= 250
+        && data.phone is string && data.phone.size() <= 24
+        && data.email is string && data.email.size() <= 150
+        && data.openingHours is string && data.openingHours.size() <= 120
+        && data.whatsappNumber is string && data.whatsappNumber.size() <= 24
+        && data.promoBanner is string && data.promoBanner.size() <= 160
+        && (!('paymentQrUrl' in data) || isSafeOptionalUrl(data.paymentQrUrl))
+        && (!('upiId' in data) || (data.upiId is string && data.upiId.size() <= 100))
+        && (!('googleReviewUrl' in data) || isSafeOptionalUrl(data.googleReviewUrl))
+        && (!('premiumPassId' in data) || (data.premiumPassId is string && data.premiumPassId.size() <= 64))
+        && data.currency == 'INR'
+        && data.theme is string && data.theme.size() == 7 && data.theme.matches('^#[0-9A-Fa-f]{6}$')
+        && data.isPublished is bool
+        && data.isSuspended is bool
+        && data.plan in ['free', 'starter', 'growth', 'pro']
+        && data.subscriptionStatus in ['active', 'inactive', 'expired']
+        && data.subscriptionExpiresAt is string && data.subscriptionExpiresAt.size() <= 40
+        && data.dishCount is int && data.dishCount >= 0 && data.dishCount <= 5000
+        && data.categoryCount is int && data.categoryCount >= 0 && data.categoryCount <= 500
+        && data.onboardingStep is int && data.onboardingStep >= 1 && data.onboardingStep <= 4
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMember(data, restId, memberId) {
+      return data.keys().hasAll(['id', 'restaurantId', 'ownerId', 'userId', 'role', 'createdAt'])
+        && data.keys().hasOnly(['id', 'restaurantId', 'ownerId', 'userId', 'role', 'createdAt'])
+        && data.id == memberId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && isValidId(data.userId)
+        && data.role in ['owner', 'manager', 'staff']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCategory(data, restId, catId) {
+      return data.keys().hasAll(['id', 'restaurantId', 'ownerId', 'name', 'sortOrder', 'isActive', 'isPublished', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'restaurantId', 'ownerId', 'name', 'sortOrder', 'isActive', 'isPublished', 'createdAt', 'updatedAt'])
+        && data.id == catId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 10000
+        && data.isActive is bool
+        && data.isPublished is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMenuItem(data, restId, itemId) {
+      return data.keys().hasAll([
+          'id', 'restaurantId', 'ownerId', 'categoryId', 'name', 'description',
+          'price', 'imageUrl', 'foodType', 'isAvailable', 'isFeatured',
+          'isPublished', 'sortOrder', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'restaurantId', 'ownerId', 'categoryId', 'name', 'description',
+          'price', 'discountPrice', 'imageUrl', 'foodType', 'isAvailable', 'isFeatured',
+          'isPublished', 'sortOrder', 'createdAt', 'updatedAt'
+        ])
+        && data.id == itemId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && isValidId(data.categoryId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.description is string && data.description.size() <= 400
+        && data.price is number && data.price >= 0 && data.price <= 100000
+        && (!('discountPrice' in data) || (data.discountPrice is number && data.discountPrice >= 0 && data.discountPrice <= 100000))
+        && isSafeOptionalUrl(data.imageUrl)
+        && data.foodType in ['veg', 'non_veg', 'egg', 'other']
+        && data.isAvailable is bool
+        && data.isFeatured is bool
+        && data.isPublished is bool
+        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 10000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQrCode(data, restId, qrId) {
+      return data.keys().hasAll(['id', 'restaurantId', 'ownerId', 'label', 'tableNumber', 'destinationUrl', 'createdAt'])
+        && data.keys().hasOnly(['id', 'restaurantId', 'ownerId', 'label', 'tableNumber', 'destinationUrl', 'createdAt'])
+        && data.id == qrId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 60
+        && data.tableNumber is string && data.tableNumber.size() <= 20
+        && isSafeRequiredUrl(data.destinationUrl)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSubscription(data, restId, subId) {
+      return data.keys().hasAll(['id', 'restaurantId', 'ownerId', 'plan', 'status', 'startedAt', 'expiresAt', 'notes'])
+        && data.keys().hasOnly(['id', 'restaurantId', 'ownerId', 'plan', 'status', 'startedAt', 'expiresAt', 'notes'])
+        && data.id == subId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && data.plan in ['free', 'starter', 'growth', 'pro']
+        && data.status in ['active', 'inactive', 'expired']
+        && data.startedAt is timestamp
+        && data.expiresAt is string && data.expiresAt.size() <= 40
+        && data.notes is string && data.notes.size() <= 300;
+    }
+
+    function isValidMenuEvent(data, restId, eventId) {
+      return data.keys().hasAll(['id', 'restaurantId', 'ownerId', 'eventType', 'source', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'restaurantId', 'ownerId', 'eventType', 'source',
+          'dishId', 'dishName', 'categoryName', 'amountInr', 'upiApp', 'createdAt'
+        ])
+        && data.id == eventId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && data.eventType in ['qr_scan', 'menu_view', 'dish_view', 'add_to_cart', 'upi_pay_click', 'review_click']
+        && data.source is string && data.source.size() <= 40
+        && (!('dishId' in data) || (data.dishId is string && data.dishId.size() <= 128))
+        && (!('dishName' in data) || (data.dishName is string && data.dishName.size() <= 100))
+        && (!('categoryName' in data) || (data.categoryName is string && data.categoryName.size() <= 60))
+        && (!('amountInr' in data) || (data.amountInr is number && data.amountInr >= 0 && data.amountInr <= 500000))
+        && (!('upiApp' in data) || (data.upiApp is string && data.upiApp.size() <= 30))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPremiumPass(data, passId) {
+      return data.keys().hasAll([
+          'id', 'tier', 'assignedEmail', 'status', 'redeemedByUid',
+          'redeemedRestaurantId', 'expiresAt', 'notes', 'createdByUid', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'tier', 'assignedEmail', 'status', 'redeemedByUid',
+          'redeemedRestaurantId', 'expiresAt', 'notes', 'createdByUid', 'createdAt', 'redeemedAt'
+        ])
+        && data.id == passId
+        && isValidId(data.id)
+        && data.id.size() <= 64
+        && data.tier in ['growth', 'pro']
+        && data.assignedEmail is string && data.assignedEmail.size() <= 150
+        && data.status in ['active', 'redeemed', 'revoked']
+        && data.redeemedByUid is string && data.redeemedByUid.size() <= 128
+        && data.redeemedRestaurantId is string && data.redeemedRestaurantId.size() <= 128
+        && data.expiresAt is string && data.expiresAt.size() <= 40
+        && data.notes is string && data.notes.size() <= 200
+        && isValidId(data.createdByUid)
+        && data.createdAt is timestamp
+        && (!('redeemedAt' in data) || data.redeemedAt is timestamp);
+    }
+
+    function isValidAuditLog(data, restId, logId) {
+      return data.keys().hasAll(['id', 'restaurantId', 'ownerId', 'userId', 'action', 'details', 'createdAt'])
+        && data.keys().hasOnly(['id', 'restaurantId', 'ownerId', 'userId', 'action', 'details', 'createdAt'])
+        && data.id == logId
+        && data.restaurantId == restId
+        && isValidId(data.ownerId)
+        && isValidId(data.userId)
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 120
+        && data.details is string && data.details.size() <= 300
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. User Profiles (Strict PII Isolation)
+    match /profiles/{userId} {
+      allow get: if isValidId(userId) && (isOwnerUid(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn()
+        && isValidId(userId)
+        && isValidProfile(incoming(), userId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'updatedAt']))
+        );
+      allow delete: if false;
+    }
+
+    // 2. Platform Admins (Protected)
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwnerUid(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && isValidId(userId)
+        && isValidAdmin(incoming(), userId)
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // 3. Global Slug Uniqueness Registry
+    match /slugs/{slug} {
+      allow get: if isValidSlug(slug) && (
+        resource == null ||
+        (existing().isPublished == true && existing().isSuspended == false) ||
+        (isSignedIn() && existing().ownerId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if false;
+      allow create: if isSignedIn()
+        && isValidSlug(slug)
+        && isValidSlugRecord(incoming(), slug)
+        && incoming().ownerId == request.auth.uid
+        && incoming().isSuspended == false
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/restaurants/$(incoming().restaurantId))
+        && get(/databases/$(database)/documents/restaurants/$(incoming().restaurantId)).data.ownerId == request.auth.uid;
+      allow update: if isSignedIn()
+        && isValidSlug(slug)
+        && isValidSlugRecord(incoming(), slug)
+        && incoming().slug == existing().slug
+        && incoming().restaurantId == existing().restaurantId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['isPublished', 'isSuspended'])) ||
+          (existing().ownerId == request.auth.uid && existing().isSuspended == false && incoming().diff(existing()).affectedKeys().hasOnly(['isPublished']))
+        );
+      allow delete: if isSignedIn() && isValidSlug(slug) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 4. Multi-Tenant Restaurants
+    match /restaurants/{restaurantId} {
+      allow get: if isValidId(restaurantId) && (
+        (existing().isPublished == true && existing().isSuspended == false) ||
+        (isSignedIn() && existing().ownerId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if (
+        (existing().isPublished == true && existing().isSuspended == false) ||
+        (isSignedIn() && existing().ownerId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && isValidId(restaurantId)
+        && isValidRestaurant(incoming(), restaurantId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().plan == 'free'
+        && incoming().subscriptionStatus == 'active'
+        && incoming().subscriptionExpiresAt == ''
+        && incoming().isSuspended == false
+        && incoming().dishCount == 0
+        && incoming().categoryCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn()
+        && isValidId(restaurantId)
+        && isValidRestaurant(incoming(), restaurantId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().slug == existing().slug
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Admin subscription & moderation management
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'plan', 'subscriptionStatus', 'subscriptionExpiresAt', 'premiumPassId', 'isSuspended', 'isPublished', 'updatedAt'
+          ])) ||
+          // Action 2: Owner profile, branding, publishing & onboarding updates
+          (existing().ownerId == request.auth.uid
+            && existing().isSuspended == false
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'restaurantType', 'description', 'logoUrl', 'coverUrl',
+              'city', 'address', 'phone', 'email', 'openingHours',
+              'whatsappNumber', 'promoBanner', 'paymentQrUrl', 'upiId', 'googleReviewUrl',
+              'theme', 'isPublished', 'onboardingStep', 'updatedAt'
+            ])) ||
+          // Action 3: Owner atomic dish/category counter sync (enforces Free plan <= 20 ceiling)
+          (existing().ownerId == request.auth.uid
+            && existing().isSuspended == false
+            && incoming().dishCount <= existing().dishCount + 1
+            && (
+              (existing().plan != 'free' && existing().subscriptionStatus == 'active') ||
+              incoming().dishCount <= 20
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly(['dishCount', 'categoryCount', 'onboardingStep', 'updatedAt'])) ||
+          // Action 4: Owner redemption of an active admin-issued Premium User ID pass
+          (existing().ownerId == request.auth.uid
+            && existing().isSuspended == false
+            && 'premiumPassId' in incoming()
+            && isValidId(incoming().premiumPassId)
+            && exists(/databases/$(database)/documents/premium_passes/$(incoming().premiumPassId))
+            && get(/databases/$(database)/documents/premium_passes/$(incoming().premiumPassId)).data.status == 'active'
+            && (
+              get(/databases/$(database)/documents/premium_passes/$(incoming().premiumPassId)).data.assignedEmail == '' ||
+              get(/databases/$(database)/documents/premium_passes/$(incoming().premiumPassId)).data.assignedEmail == request.auth.token.email
+            )
+            && incoming().plan == get(/databases/$(database)/documents/premium_passes/$(incoming().premiumPassId)).data.tier
+            && incoming().subscriptionStatus == 'active'
+            && incoming().subscriptionExpiresAt == get(/databases/$(database)/documents/premium_passes/$(incoming().premiumPassId)).data.expiresAt
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'plan', 'subscriptionStatus', 'subscriptionExpiresAt', 'premiumPassId', 'updatedAt'
+            ]))
+        );
+      allow delete: if isAdmin() && isValidId(restaurantId);
+
+      // 4a. Restaurant Members
+      match /members/{memberId} {
+        allow get: if isValidId(restaurantId) && isValidId(memberId) && (
+          (isSignedIn() && (existing().ownerId == request.auth.uid || existing().userId == request.auth.uid)) ||
+          isAdmin()
+        );
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || existing().userId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(memberId)
+          && isValidMember(incoming(), restaurantId, memberId)
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid;
+        allow update: if false;
+        allow delete: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(memberId)
+          && (existing().ownerId == request.auth.uid || isAdmin());
+      }
+
+      // 4b. Categories
+      match /categories/{categoryId} {
+        allow get: if isValidId(restaurantId) && isValidId(categoryId) && (
+          existing().isPublished == true ||
+          (isSignedIn() && existing().ownerId == request.auth.uid) ||
+          isAdmin()
+        );
+        allow list: if (
+          existing().isPublished == true ||
+          (isSignedIn() && existing().ownerId == request.auth.uid) ||
+          isAdmin()
+        );
+        allow create: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(categoryId)
+          && isValidCategory(incoming(), restaurantId, categoryId)
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false;
+        allow update: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(categoryId)
+          && isValidCategory(incoming(), restaurantId, categoryId)
+          && incoming().id == existing().id
+          && incoming().restaurantId == existing().restaurantId
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['isPublished', 'updatedAt'])) ||
+            (existing().ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false
+              && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'sortOrder', 'isActive', 'isPublished', 'updatedAt']))
+          );
+        allow delete: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(categoryId)
+          && (
+            isAdmin() ||
+            (existing().ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false)
+          );
+      }
+
+      // 4c. Menu Items (with Plan-Limit Enforcement)
+      match /menu_items/{itemId} {
+        allow get: if isValidId(restaurantId) && isValidId(itemId) && (
+          existing().isPublished == true ||
+          (isSignedIn() && existing().ownerId == request.auth.uid) ||
+          isAdmin()
+        );
+        allow list: if (
+          existing().isPublished == true ||
+          (isSignedIn() && existing().ownerId == request.auth.uid) ||
+          isAdmin()
+        );
+        allow create: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(itemId)
+          && isValidMenuItem(incoming(), restaurantId, itemId)
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false
+          && (
+            (get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.plan != 'free'
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.subscriptionStatus == 'active') ||
+            get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.dishCount < 20
+          );
+        allow update: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(itemId)
+          && isValidMenuItem(incoming(), restaurantId, itemId)
+          && incoming().id == existing().id
+          && incoming().restaurantId == existing().restaurantId
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['isPublished', 'updatedAt'])) ||
+            (existing().ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'categoryId', 'name', 'description', 'price', 'discountPrice', 'imageUrl',
+                'foodType', 'isAvailable', 'isFeatured', 'isPublished',
+                'sortOrder', 'updatedAt'
+              ]))
+          );
+        allow delete: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(itemId)
+          && (
+            isAdmin() ||
+            (existing().ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false)
+          );
+      }
+
+      // 4d. QR Codes
+      match /qr_codes/{qrId} {
+        allow get: if isValidId(restaurantId) && isValidId(qrId) && (
+          (isSignedIn() && existing().ownerId == request.auth.uid) || isAdmin()
+        );
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(qrId)
+          && isValidQrCode(incoming(), restaurantId, qrId)
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false
+          && (
+            incoming().tableNumber == '' ||
+            (get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.plan in ['growth', 'pro']
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.subscriptionStatus == 'active')
+          );
+        allow update: if false;
+        allow delete: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(qrId)
+          && (existing().ownerId == request.auth.uid || isAdmin());
+      }
+
+      // 4e. Subscriptions
+      match /subscriptions/{subId} {
+        allow get: if isValidId(restaurantId) && isValidId(subId) && (
+          (isSignedIn() && existing().ownerId == request.auth.uid) || isAdmin()
+        );
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(subId)
+          && isValidSubscription(incoming(), restaurantId, subId)
+          && incoming().startedAt == request.time
+          && (
+            isAdmin() ||
+            (incoming().ownerId == request.auth.uid
+              && incoming().plan == 'free'
+              && incoming().status == 'active'
+              && incoming().expiresAt == ''
+              && exists(/databases/$(database)/documents/restaurants/$(restaurantId))
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid) ||
+            (incoming().ownerId == request.auth.uid
+              && incoming().status == 'active'
+              && exists(/databases/$(database)/documents/restaurants/$(restaurantId))
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.plan == incoming().plan)
+          );
+        allow update: if isAdmin()
+          && isValidId(restaurantId)
+          && isValidId(subId)
+          && isValidSubscription(incoming(), restaurantId, subId)
+          && incoming().id == existing().id
+          && incoming().restaurantId == existing().restaurantId
+          && incoming().ownerId == existing().ownerId
+          && incoming().startedAt == existing().startedAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'status', 'expiresAt', 'notes']);
+        allow delete: if false;
+      }
+
+      // 4f. Menu Events (Real QR Scan & Menu View Analytics)
+      match /menu_events/{eventId} {
+        allow get: if isValidId(restaurantId) && isValidId(eventId) && (
+          (isSignedIn() && existing().ownerId == request.auth.uid) || isAdmin()
+        );
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+        allow create: if isValidId(restaurantId)
+          && isValidId(eventId)
+          && isValidMenuEvent(incoming(), restaurantId, eventId)
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isPublished == true
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.isSuspended == false
+          && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == incoming().ownerId;
+        allow update, delete: if false;
+      }
+
+      // 4g. Audit Logs (Append-Only)
+      match /audit_logs/{logId} {
+        allow get: if isValidId(restaurantId) && isValidId(logId) && (
+          (isSignedIn() && existing().ownerId == request.auth.uid) || isAdmin()
+        );
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && isValidId(restaurantId)
+          && isValidId(logId)
+          && isValidAuditLog(incoming(), restaurantId, logId)
+          && incoming().userId == request.auth.uid
+          && incoming().createdAt == request.time
+          && (
+            isAdmin() ||
+            (incoming().ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid)
+          );
+        allow update, delete: if false;
+      }
+    }
+
+    // 5. Issued Premium User ID Passes (Admin-Minted, Single-Use Owner Redemption)
+    match /premium_passes/{passId} {
+      allow get: if isSignedIn() && isValidId(passId) && (
+        isAdmin() ||
+        resource == null ||
+        existing().assignedEmail == '' ||
+        existing().assignedEmail == request.auth.token.email ||
+        existing().redeemedByUid == request.auth.uid
+      );
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && isValidId(passId)
+        && isValidPremiumPass(incoming(), passId)
+        && incoming().createdByUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isSignedIn()
+        && isValidId(passId)
+        && isValidPremiumPass(incoming(), passId)
+        && incoming().id == existing().id
+        && incoming().tier == existing().tier
+        && incoming().createdByUid == existing().createdByUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'status', 'assignedEmail', 'expiresAt', 'notes', 'redeemedByUid', 'redeemedRestaurantId', 'redeemedAt'
+          ])) ||
+          (existing().status == 'active'
+            && (existing().assignedEmail == '' || existing().assignedEmail == request.auth.token.email)
+            && incoming().status == 'redeemed'
+            && incoming().redeemedByUid == request.auth.uid
+            && isValidId(incoming().redeemedRestaurantId)
+            && incoming().redeemedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'redeemedByUid', 'redeemedRestaurantId', 'redeemedAt'
+            ]))
+        );
+      allow delete: if isAdmin() && isValidId(passId);
+    }
+  }
+}

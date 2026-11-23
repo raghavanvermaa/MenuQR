@@ -1,0 +1,6 @@
+{
+  "name": "MENUQR",
+  "description": "Multi-tenant digital QR menu SaaS platform for restaurants, cafes, bakeries, dhabas, and cloud kitchens.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

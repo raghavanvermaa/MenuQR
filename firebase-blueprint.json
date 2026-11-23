@@ -1,0 +1,332 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "Private user account profile for restaurant owners and staff.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 24 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fullName", "email", "phone", "createdAt", "updatedAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Protected platform administrator entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "createdAt"]
+    },
+    "SlugRecord": {
+      "title": "SlugRecord",
+      "description": "Global slug uniqueness lock and public resolution record.",
+      "type": "object",
+      "properties": {
+        "slug": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "isPublished": { "type": "boolean" },
+        "isSuspended": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["slug", "restaurantId", "ownerId", "isPublished", "isSuspended", "createdAt"]
+    },
+    "Restaurant": {
+      "title": "Restaurant",
+      "description": "Multi-tenant restaurant entity with branding, status, and subscription state.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "restaurantType": {
+          "type": "string",
+          "enum": ["cafe", "restaurant", "dhaba", "bakery", "cloud_kitchen", "dessert_shop", "other"]
+        },
+        "description": { "type": "string", "maxLength": 500 },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 250 },
+        "phone": { "type": "string", "maxLength": 24 },
+        "email": { "type": "string", "maxLength": 150 },
+        "openingHours": { "type": "string", "maxLength": 120 },
+        "whatsappNumber": { "type": "string", "maxLength": 24 },
+        "promoBanner": { "type": "string", "maxLength": 160 },
+        "paymentQrUrl": { "type": "string", "maxLength": 500 },
+        "upiId": { "type": "string", "maxLength": 100 },
+        "googleReviewUrl": { "type": "string", "maxLength": 500 },
+        "currency": { "type": "string", "enum": ["INR"] },
+        "theme": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "maxLength": 7 },
+        "isPublished": { "type": "boolean" },
+        "isSuspended": { "type": "boolean" },
+        "plan": { "type": "string", "enum": ["free", "starter", "growth", "pro"] },
+        "subscriptionStatus": { "type": "string", "enum": ["active", "inactive", "expired"] },
+        "subscriptionExpiresAt": { "type": "string", "maxLength": 40 },
+        "premiumPassId": { "type": "string", "maxLength": 64 },
+        "dishCount": { "type": "number" },
+        "categoryCount": { "type": "number" },
+        "onboardingStep": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "name",
+        "slug",
+        "restaurantType",
+        "description",
+        "logoUrl",
+        "coverUrl",
+        "city",
+        "address",
+        "phone",
+        "email",
+        "openingHours",
+        "whatsappNumber",
+        "promoBanner",
+        "currency",
+        "theme",
+        "isPublished",
+        "isSuspended",
+        "plan",
+        "subscriptionStatus",
+        "subscriptionExpiresAt",
+        "dishCount",
+        "categoryCount",
+        "onboardingStep",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RestaurantMember": {
+      "title": "RestaurantMember",
+      "description": "Role-based membership linking users to a restaurant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["owner", "manager", "staff"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "restaurantId", "ownerId", "userId", "role", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Menu category belonging to a restaurant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "sortOrder": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "restaurantId", "ownerId", "name", "sortOrder", "isActive", "isPublished", "createdAt", "updatedAt"]
+    },
+    "MenuItem": {
+      "title": "MenuItem",
+      "description": "Dish or beverage item within a restaurant menu.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "categoryId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 400 },
+        "price": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "foodType": { "type": "string", "enum": ["veg", "non_veg", "egg", "other"] },
+        "isAvailable": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "restaurantId",
+        "ownerId",
+        "categoryId",
+        "name",
+        "description",
+        "price",
+        "imageUrl",
+        "foodType",
+        "isAvailable",
+        "isFeatured",
+        "isPublished",
+        "sortOrder",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "QrCode": {
+      "title": "QrCode",
+      "description": "Permanent or table-specific QR code destination record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "tableNumber": { "type": "string", "maxLength": 20 },
+        "destinationUrl": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "restaurantId", "ownerId", "label", "tableNumber", "destinationUrl", "createdAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Subscription history and billing plan state for a restaurant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "plan": { "type": "string", "enum": ["free", "starter", "growth", "pro"] },
+        "status": { "type": "string", "enum": ["active", "inactive", "expired"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["id", "restaurantId", "ownerId", "plan", "status", "startedAt", "expiresAt", "notes"]
+    },
+    "MenuEvent": {
+      "title": "MenuEvent",
+      "description": "Real QR scan, menu view, dish view, cart add, UPI pay click, and review analytics event.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": {
+          "type": "string",
+          "enum": ["qr_scan", "menu_view", "dish_view", "add_to_cart", "upi_pay_click", "review_click"]
+        },
+        "source": { "type": "string", "maxLength": 40 },
+        "dishId": { "type": "string", "maxLength": 128 },
+        "dishName": { "type": "string", "maxLength": 100 },
+        "categoryName": { "type": "string", "maxLength": 60 },
+        "amountInr": { "type": "number" },
+        "upiApp": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "restaurantId", "ownerId", "eventType", "source", "createdAt"]
+    },
+    "PremiumPass": {
+      "title": "PremiumPass",
+      "description": "Admin-issued Premium User ID pass that unlocks Growth or Pro plans and AI Tracking Analytics.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tier": { "type": "string", "enum": ["growth", "pro"] },
+        "assignedEmail": { "type": "string", "maxLength": 150 },
+        "status": { "type": "string", "enum": ["active", "redeemed", "revoked"] },
+        "redeemedByUid": { "type": "string", "maxLength": 128 },
+        "redeemedRestaurantId": { "type": "string", "maxLength": 128 },
+        "expiresAt": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 200 },
+        "createdByUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "redeemedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "tier",
+        "assignedEmail",
+        "status",
+        "redeemedByUid",
+        "redeemedRestaurantId",
+        "expiresAt",
+        "notes",
+        "createdByUid",
+        "createdAt"
+      ]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable operational audit log for restaurant and admin actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "restaurantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "action": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "details": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "restaurantId", "ownerId", "userId", "action", "details", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/profiles/{userId}": {
+      "schema": { "$ref": "#/entities/Profile" },
+      "description": "Private user profile documents keyed by Firebase Auth UID."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Server-controlled platform administrator records."
+    },
+    "/slugs/{slug}": {
+      "schema": { "$ref": "#/entities/SlugRecord" },
+      "description": "Unique restaurant URL slug registry for public menu lookup."
+    },
+    "/restaurants/{restaurantId}": {
+      "schema": { "$ref": "#/entities/Restaurant" },
+      "description": "Multi-tenant restaurant master documents."
+    },
+    "/restaurants/{restaurantId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/RestaurantMember" },
+      "description": "Restaurant team memberships."
+    },
+    "/restaurants/{restaurantId}/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Menu categories under a restaurant."
+    },
+    "/restaurants/{restaurantId}/menu_items/{itemId}": {
+      "schema": { "$ref": "#/entities/MenuItem" },
+      "description": "Menu dishes under a restaurant."
+    },
+    "/restaurants/{restaurantId}/qr_codes/{qrId}": {
+      "schema": { "$ref": "#/entities/QrCode" },
+      "description": "Generated QR code records for a restaurant."
+    },
+    "/restaurants/{restaurantId}/subscriptions/{subId}": {
+      "schema": { "$ref": "#/entities/Subscription" },
+      "description": "Subscription history records for a restaurant."
+    },
+    "/restaurants/{restaurantId}/menu_events/{eventId}": {
+      "schema": { "$ref": "#/entities/MenuEvent" },
+      "description": "Real QR scan and menu view event telemetry."
+    },
+    "/restaurants/{restaurantId}/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable activity audit trail per restaurant."
+    },
+    "/premium_passes/{passId}": {
+      "schema": { "$ref": "#/entities/PremiumPass" },
+      "description": "Issued Premium User ID passes for Growth and Pro activation."
+    }
+  }
+}
